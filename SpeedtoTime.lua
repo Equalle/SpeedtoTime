@@ -6,7 +6,7 @@ local myHandle = select(4, ...)
 
 -- CONSTANTS
 local PLUGIN_NAME = 'SpeedtoTime'
-local PLUGIN_VERSION = 'ALPHA 0.0.1'
+local PLUGIN_VERSION = 'ALPHA 0.1.1'
 local UI_CMD_ICON_NAME = PLUGIN_NAME .. 'Icon'
 local UI_MENU_NAME = PLUGIN_NAME .. ' Menu'
 
@@ -15,10 +15,17 @@ local pluginAlive = nil
 local pluginRunning = false
 local pluginError = nil
 
+local presskey = function(key)
+  Keyboard(1, "press", key)
+  Keyboard(1, "release", key)
+end
+
 -- HELPER FUNCTIONS - Global Variables
 local function get_global(varName, default)
   return GetVar(GlobalVars(), varName) or default
 end
+
+local hasTimeMAtricks = get_global("TM_MasterValue") ~= nil
 
 local function set_global(varName, value)
   SetVar(GlobalVars(), varName, value)
@@ -54,7 +61,7 @@ local icons = {
   matricks = 'object_matricks',
   star = 'star',
   cross = 'close',
-  time = 'setup_time'
+  time = 'object_clock',
 }
 local corners = {
   none = 'corner0',
@@ -68,6 +75,57 @@ local corners = {
   right = 'corner10',
   all = 'corner15',
 }
+
+local function sanitize_text(text)
+  text = tostring(text or "")
+  if text == "" then return "" end
+  -- convert comma to dots
+  text = text:gsub(",", ".")
+  -- keep only digits and dot
+  text = text:gsub("[^%d%.]", "")
+  --keep just the first dot
+  local fistDotSeen = false
+  local cleaned = {}
+  for i = 1, #text do
+    local c = text:sub(i, i)
+    if c == "." then
+      if not fistDotSeen then
+        table.insert(cleaned, c)
+        fistDotSeen = true
+      end
+    else
+      table.insert(cleaned, c)
+    end
+  end
+  text = table.concat(cleaned)
+
+  --msut start with a digit, find first digit
+  local firstDigit = text:match("%d")
+  if not firstDigit then
+    return ""
+  end
+
+  -- build result
+  local digitIndex = text:find(firstDigit, 1, true)
+  local afterFirst = text:sub(digitIndex + 1)
+
+  -- ignore any further digits before a possible dot
+  local dotPos = afterFirst:find("%.")
+  if dotPos then
+    --there is a dot after the leading digit
+    local decimals = afterFirst:sub(dotPos + 1)
+    decimals = decimals:gsub("%.", "")              -- remove any further dots
+    decimals = decimals:gsub("[^%d]", ""):sub(1, 2) -- keep only digits, max 2
+    if decimals == "" and text:sub(-1) == "." then
+      -- user just typed the dot; allow transient
+      return firstDigit .. "."
+    end
+    return firstDigit .. "." .. decimals
+  else
+    -- no dot, just return leading digits
+    return firstDigit
+  end
+end
 
 local function get_subdir(subdir)
   return (subdir == "CmdLineSection" and GetDisplayByIndex(1).CmdLineSection)
@@ -111,13 +169,13 @@ local UI_XML_CONTENT = [[
 -- xmlType: "ui"
 local function resolve_xml_file(xmlType)
   -- local base = GetPath("temp") or ""
-  -- local base = '/Users/juriseiffert/Library/Mobile Documents/com~apple~CloudDocs/Lua Plugins/GMA3/TimeMAtricks'
-  local base = 'C:\\Users\\Juri\\iCloudDrive\\Lua Plugins\\GMA3\\TimeMAtricks'
+  -- local base = '/Users/juriseiffert/Library/Mobile Documents/com~apple~CloudDocs/Lua Plugins/GMA3/SpeedtoTime'
+  local base = 'C:\\Users\\Juri\\iCloudDrive\\Lua Plugins\\GMA3\\SpeedtoTime'
   local dir = base .. "/"
   local filename, content
 
   if xmlType == "ui" then
-    filename = "SpeedtoTime.xml"
+    filename = "SpeedtoTime_UI.xml"
     content = UI_XML_CONTENT
   else
     ErrPrintf("Unknown XML type: %s", tostring(xmlType))
@@ -220,78 +278,54 @@ local function create_menu()
 
   -- wire up and set initial defaults first
   local buttons = {
-    -- { "CloseBtn",    "close" },
-    { "SettingsBtn", "open_settings" },
-    { "PluginOff",   "plugin_off" },
-    { "PluginOn",    "plugin_on" },
-    { "FadeLess",    "fade_adjust" },
-    { "FadeMore",    "fade_adjust" },
-    -- { "Close",       "close" },
-    { "Apply",       "apply" },
+    { "PluginOff", "plugin_off" },
+    { "PluginOn",  "plugin_on" },
+    -- { "Apply",       "apply" },
   }
   for _, b in ipairs(buttons) do
-    if not add_ui_element(b[1], overlay, "button", { clicked = b[2] }) then
+    if not add_ui_element(b[1], ui, "button", { clicked = b[2] }) then
       ErrPrintf("error at %s", b)
     end
   end
 
-  local holds = {
-    { "FadeLess", "fade_hold" },
-    { "FadeMore", "fade_hold" },
-  }
-  for _, h in ipairs(holds) do
-    if not add_ui_element(h[1], overlay, "hold", { hold = h[2] }) then
-      ErrPrintf("error at %s", h)
-    end
-  end
-
   local checks = {
-    { "TimingMaster",         "master_swap",     1 },
-    { "SpeedMaster",          "master_swap",     0 },
-    { "Matricks1Button",      "matricks_toggle", 1 },
-    { "Matricks2Button",      "matricks_toggle", 0 },
-    { "Matricks3Button",      "matricks_toggle", 0 },
-    { "MatricksPrefixButton", "matricks_toggle", 0 },
+    { "TM1Toggle",         "matricks_toggle",     1 },
   }
   for _, c in ipairs(checks) do
-    if not add_ui_element(c[1], overlay, "checkbox", { clicked = c[2], state = c[3] }) then
+    if not add_ui_element(c[1], ui, "checkbox", { clicked = c[2], state = c[3] }) then
       ErrPrintf("error at %s", c)
     end
   end
 
   local texts = {
-    { "MasterValue",    "text" }, -- no default -> keep existing
-    { "Matricks1Value", "text" }, { "Matricks1Rate", "text", "0.25" },
-    { "Matricks2Value", "text" }, { "Matricks2Rate", "text", "0.5" },
-    { "Matricks3Value", "text" }, { "Matricks3Rate", "text", "1" },
-    { "MatricksPrefixValue", "text" },
-    --{ "RefreshRateValue",    "text", "1.5" },
+    -- { "SpeedMaster",    "text" }, -- no default -> keep existing
+    -- { "Matricks1Value", "text" }, { "Matricks1Rate", "text", "0.25" },
   }
   for _, t in ipairs(texts) do
-    if not add_ui_element(t[1], overlay, "textbox", { content = t[3] }) then
+    if not add_ui_element(t[1], ui, "textbox", { content = t[3] }) then
       ErrPrintf("error at %s", t)
     end
   end
 
   local rates = {
-    { "HT",        "rate_mod",          1 },
-    { "ResetRate", "reset_overallrate", 1 },
-    { "DT",        "rate_mod",          1 },
-  }
+    -- { "HT",        "rate_mod",          1 },
+    -- { "ResetRate", "reset_overallrate", 1 },
+    -- { "DT",        "rate_mod",          1 },
+  } 
 
   for _, r in ipairs(rates) do
-    if not add_ui_element(r[1], overlay, "button", { clicked = r[2] }) then
+    if not add_ui_element(r[1], ui, "button", { clicked = r[2] }) then
       ErrPrintf("error at %s", r)
     end
   end
 
   local plugininfo = {
-    { "TitleButton", "TimeMatricks",              "object_matricks" },
+    { "TitleButton", PLUGIN_NAME,  icons.time },
     { "Version",     "Version " .. PLUGIN_VERSION },
   }
 
   for _, p in ipairs(plugininfo) do
-    local el = overlay:FindRecursive(p[1])
+    local el = ui:FindRecursive(p[1])
     if el then
       el.Text = p[2] or ""
       if p[3] then
@@ -301,21 +335,22 @@ local function create_menu()
   end
 
   -- now load saved globals so they override the defaults set above
---   load_state(overlay)
---   save_state()
-  coroutine.yield(0.1) -- slight delay to ensure UI is ready
-  if overlay:FindRecursive("MasterValue").Content == "" then
-    FindBestFocus(overlay:FindRecursive("MasterValue"))
+  --   load_state(ui)
+  --   save_state()
+
+  local title = ui:FindRecursive("TitleBar")
+  local cb = title:FindRecursive("CheckBox")
+  if not hasTimeMAtricks then
+    if title then
+      cb.Enabled = "No"
+      cb.State = 0
+      cb.Tooltip = "Get the TimeMAtricks Plugin to sync settings"
+    end
   else
-    FindBestFocus(overlay:FindRecursive("Matricks1Value"))
+    cb.Enabled = "Yes"
+    cb.Tooltip = "Use TimeMAtricks settings"
   end
-
-
-  local less = overlay:FindRecursive("FadeLess")
-  less.BackColor = colors.background.fade
-
-  local more = overlay:FindRecursive("FadeMore")
-  more.BackColor = colors.background.delay
+  coroutine.yield(0.1) -- slight delay to ensure UI is ready
 end
 
 local function create_CMDlineIcon()
@@ -327,15 +362,15 @@ local function create_CMDlineIcon()
   cmdbar[2][cols].SizePolicy = "Fixed"
   cmdbar[2][cols].Size       = 50
 
-  STIcon                       = cmdbar:Append('Button')
-  STIcon.Name                  = UI_CMD_ICON_NAME
-  STIcon.Anchors               = { left = cols - 2 }
-  STIcon.W                     = 49
-  STIcon.PluginComponent       = myHandle
-  STIcon.Clicked               = 'cmdbar_clicked'
-  STIcon.Icon                  = icons.time
-  STIcon.IconColor             = colors.icon.inactive
-  STIcon.Tooltip               = "SpeedtoTime Plugin"
+  STIcon                     = cmdbar:Append('Button')
+  STIcon.Name                = UI_CMD_ICON_NAME
+  STIcon.Anchors             = { left = cols - 2 }
+  STIcon.W                   = 49
+  STIcon.PluginComponent     = myHandle
+  STIcon.Clicked             = 'cmdbar_clicked'
+  STIcon.Icon                = icons.time
+  STIcon.IconColor           = colors.icon.inactive
+  STIcon.Tooltip             = "SpeedtoTime Plugin"
 
   Tri                        = cmdbar:FindRecursive("RightTriangle")
   if Tri then
@@ -345,18 +380,17 @@ end
 
 local function delete_CMDlineIcon()
   if STIcon then
-    Printf(tostring(STIcon.Name) .. " removed")
     local cmdbar = GetDisplayByIndex(1).CmdLineSection
-    local iconPosition = STIcon.Anchors.left or 0  -- Get the actual position
-    
+    local iconPosition = STIcon.Anchors.left or 0 -- Get the actual position
+
     -- Remove the icon
     cmdbar:Remove(STIcon:Get("No"))
     STIcon = nil
-    
+
     -- Decrease column count
     local currentCols = tonumber(cmdbar:Get("Columns"))
     cmdbar.Columns = currentCols - 1
-    
+
     -- Shift all items that were to the right of the removed icon
     for i = 1, cmdbar:Count() do
       local item = cmdbar:Ptr(i)
@@ -367,32 +401,215 @@ local function delete_CMDlineIcon()
         end
       end
     end
-    
+
     -- The triangle should now be at the last position
     local Tri = cmdbar:FindRecursive("RightTriangle")
     if Tri then
-      Tri.Anchors = { left = currentCols - 2 }  -- New last column (0-based)
+      Tri.Anchors = { left = currentCols - 2 } -- New last column (0-based)
     end
   end
 end
 
-signalTable.cmdbar_clicked = function()
-  Printf("Clicked")
+signalTable.apply = function(caller)
+  -- Printf("Settings Applied")
+  save_state()
+  signalTable.ShowWarning2(caller, "")
+  FindNextFocus()
 end
 
-signalTable.plugin_off = function()
+signalTable.matricks_toggle = function(caller)
+  local mapping = {
+    TM1Toggle = { "TM1Value", "TM1Rate" },
+  }
+  local related = mapping[caller.Name] or {}
+  local ov = GetDisplayByIndex(1).ScreenOverlay:FindRecursive(UI_MENU_NAME)
+  local newState = (caller:Get("State") == 1) and 0 or 1
+  caller:Set("State", newState)
+
+  local enable = (newState == 1) and "Yes" or "No"
+  for _, name in ipairs(related) do
+    local el = ov:FindRecursive(name)
+    if el then
+      el.Enabled = enable
+      if enable == "Yes" and name:match("Value") then
+        FindBestFocus(el)
+      else
+        FindBestFocus(ov)
+      end
+    end
+  end
+  save_state()
+end
+
+signalTable.Confirm = function(caller)
+  local overlay = GetDisplayByIndex(1).ScreenOverlay
+  if caller == overlay.FindRecursive(UI_MENU_NAME) then
+    signalTable.close(caller)
+  elseif caller == overlay.FindRecursive(UI_SETTINGS_NAME) then
+    signalTable.close(caller)
+  end
+end
+
+signalTable.sanitize = function(caller)
+  local before = caller.Content or ""
+  local after = sanitize_text(before)
+  if before ~= after then
+    caller.Content = after
+    if caller.HasFocus then
+      Keyboard(1, "press", "End")
+      Keyboard(1, "release", "End")
+      signalTable.ShowWarning(caller, "Allowed format: x.xx")
+    end
+  end
+end
+
+signalTable.ShowWarning = function(caller, status, creator)
+  local ov = GetDisplayByIndex(1).ScreenOverlay:FindRecursive(UI_MENU_NAME)
+  local ov2 = GetDisplayByIndex(1).ScreenOverlay:FindRecursive("Settings Menu")
+  if ov == caller:Parent():Parent():Parent() then
+    local ti = ov.TitleBar.WarningButton
+    ti.ShowAnimation(status)
+  elseif ov2 == caller:Parent():Parent():Parent() then
+    local ti = ov2.TitleBar.WarningButton
+    ti.ShowAnimation(status)
+  end
+  -- ErrPrintf(status)
+  if pluginError then
+    pluginError = nil
+    coroutine.yield(0.2)
+    FindNextFocus(true)
+  end
+end
+
+signalTable.LineEditSelectAll = function(caller)
+  if not caller then return end
+  caller:SelectAll()
+
+  local ov = GetDisplayByIndex(1).ScreenOverlay:FindRecursive(UI_MENU_NAME)
+  if not ov then return end
+
+  local fieldNames = {
+    "Matricks1Value",
+    "Matricks2Value",
+    "Matricks3Value",
+    "Matricks1Rate",
+    "Matricks2Rate",
+    "Matricks3Rate",
+    "MatricksPrefixValue",
+    "MasterValue"
+  }
+
+  local function isRate(name)
+    return name:match("^Matricks%dRate$")
+  end
+
+  for _, name in ipairs(fieldNames) do
+    if name ~= caller.Name and not isRate(name) then
+      local el = ov:FindRecursive(name)
+      if el then
+        -- Deselect if it somehow has focus
+        if el.HasFocus then el:Deselect() end
+        -- Restore unsaved edits back to stored global
+        local saved = get_global("TM_" .. name, el.Content or "")
+        if (el.Content or "") ~= saved then
+          el.Content = saved
+          signalTable.ShowWarning(caller, "NOT SAVED! Restored saved value")
+        end
+      end
+    end
+  end
+end
+
+signalTable.LineEditDeSelect = function(caller)
+  caller.Deselect();
+  -- save_state()
+end
+
+signalTable.ExecuteOnEnter = function(caller, dummy, keyCode)
+  if caller.HasFocus and keyCode == Enums.KeyboardCodes.Enter then
+    signalTable.LineEditDeSelect(caller)
+    -- save_state()
+    do
+      local n = caller and caller.Name
+      if n == "Matricks1Value" or n == "Matricks2Value" or n == "Matricks3Value" or n == "MatricksPrefixValue" then
+        matricks_handler(caller)
+      elseif n == "MasterValue" or n == "RefreshRateValue" or n == "MatricksStartIndex" then
+        save_state()
+      end
+    end
+    if caller.Name == "Apply" then
+      signalTable.apply(caller)
+      FindNextFocus()
+    elseif caller.Name == "Close" then
+      signalTable.close(caller)
+    else
+      FindNextFocus()
+    end
+  end
+end
+
+signalTable.NextFocus = function()
+  FindNextFocus()
+end
+
+signalTable.cmdbar_clicked = function()
+  if not is_valid_ui_item(UI_MENU_NAME, "ScreenOverlay") then
+    local ov = GetTopOverlay(1)
+    create_menu()
+    local ov = GetTopOverlay(1)
+    FindBestFocus(ov)
+  else
+    return
+  end
+end
+
+signalTable.close = function(caller)
+  if caller and caller.Name == "Close" then
+    Printf(caller.Name)
+    presskey("Escape")
+    local ov = GetDisplayByIndex(1).ScreenOverlay
+    local menu = ov:FindRecursive(UI_MENU_NAME)
+    menu.Visible = "Yes"
+  end
+end
+
+signalTable.plugin_off = function(caller)
   pluginRunning = false
-  Printf("Plugin stopped")
+  local ov = GetDisplayByIndex(1).ScreenOverlay:FindRecursive(UI_MENU_NAME)
+  local on = ov:FindRecursive("PluginOn")
+  local off = ov:FindRecursive("PluginOff")
+  local titleicon = ov:FindRecursive("TitleButton")
+  local cmdicon = GetDisplayByIndex(1).CmdLineSection:FindRecursive(UI_CMD_ICON_NAME)
+  if not on or not off then return end
+  on.BackColor, off.BackColor, on.TextColor, off.TextColor = colors.button.default, colors.button.clear,
+      colors.text.white, colors.icon.active
+  titleicon.IconColor = "Button.Icon"
+  cmdicon.IconColor = "Button.Icon"
+end
+
+signalTable.plugin_on = function(caller)
+  pluginRunning = true
+  local ov = GetDisplayByIndex(1).ScreenOverlay:FindRecursive(UI_MENU_NAME)
+  local off = ov:FindRecursive("PluginOff")
+  local on = ov:FindRecursive("PluginOn")
+  local titleicon = ov:FindRecursive("TitleButton")
+  local cmdicon = GetDisplayByIndex(1).CmdLineSection:FindRecursive(UI_CMD_ICON_NAME)
+  if not on or not off then return end
+  off.BackColor, on.BackColor, off.TextColor, on.TextColor = colors.button.default, colors.button.please,
+      colors.text.white, colors.icon.active
+  titleicon.IconColor = "Button.ActiveIcon"
+  cmdicon.IconColor = "Button.ActiveIcon"
 end
 
 local function plugin_loop()
-  Printf("tick")
+  -- Printf("tick")
   pluginAlive = true
   if pluginRunning then
     -- Loop goes here
   end
-    local refreshrate = tonumber(get_global("STT_RefreshRateValue", "1")) or tonumber(get_global("TM_RefreshRateValue", "1")) or 1
-    coroutine.yield(refreshrate)
+  local refreshrate = tonumber(get_global("STT_RefreshRateValue", "1")) or
+      tonumber(get_global("TM_RefreshRateValue", "1")) or 1
+  coroutine.yield(refreshrate)
 end
 
 local function plugin_kill()
@@ -405,8 +622,8 @@ local function plugin_kill()
     Keyboard(1, "press", "Escape")
     Keyboard(1, "release", "Escape")
   end
-    local temp = GetPath("temp", false)
-  local uixml = temp .. "SpeedtoTime.xml"
+  local temp = GetPath("temp", false)
+  local uixml = temp .. "SpeedtoTime_UI.xml"
   if FileExists(uixml) then
     os.remove(uixml)
     Printf("Removed " .. uixml)
@@ -423,9 +640,11 @@ local function main()
       create_CMDlineIcon()
     end
     Timer(plugin_loop, 0, 0, plugin_kill)
+    signalTable.cmdbar_clicked()
+    return
+  else
+    signalTable.cmdbar_clicked()
   end
-  signalTable.cmdbar_clicked()
-  return
 end
 
 return main
