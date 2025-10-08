@@ -11,7 +11,7 @@ local UI_CMD_ICON_NAME = PLUGIN_NAME .. 'Icon'
 local UI_MENU_NAME = PLUGIN_NAME .. ' Menu'
 
 -- PLUGIN STATE
-local pluginAlive = true
+local pluginAlive = nil
 local pluginRunning = false
 local pluginError = nil
 
@@ -54,6 +54,7 @@ local icons = {
   matricks = 'object_matricks',
   star = 'star',
   cross = 'close',
+  time = 'setup_time'
 }
 local corners = {
   none = 'corner0',
@@ -318,6 +319,7 @@ local function create_menu()
 end
 
 local function create_CMDlineIcon()
+  Printf("Creating CMDline Icon")
   local cmdbar               = GetDisplayByIndex(1).CmdLineSection
   local lastCols             = tonumber(cmdbar:Get("Columns"))
   local cols                 = lastCols + 1
@@ -325,15 +327,15 @@ local function create_CMDlineIcon()
   cmdbar[2][cols].SizePolicy = "Fixed"
   cmdbar[2][cols].Size       = 50
 
-  Icon                       = cmdbar:Append('Button')
-  Icon.Name                  = UI_CMD_ICON_NAME
-  Icon.Anchors               = { left = cols - 2 }
-  Icon.W                     = 49
-  Icon.PluginComponent       = myHandle
-  Icon.Clicked               = 'cmdbar_clicked'
-  Icon.Icon                  = icons.matricks
-  Icon.IconColor             = colors.icon.inactive
-  Icon.Tooltip               = "SpeedtoTime Plugin"
+  STIcon                       = cmdbar:Append('Button')
+  STIcon.Name                  = UI_CMD_ICON_NAME
+  STIcon.Anchors               = { left = cols - 2 }
+  STIcon.W                     = 49
+  STIcon.PluginComponent       = myHandle
+  STIcon.Clicked               = 'cmdbar_clicked'
+  STIcon.Icon                  = icons.time
+  STIcon.IconColor             = colors.icon.inactive
+  STIcon.Tooltip               = "SpeedtoTime Plugin"
 
   Tri                        = cmdbar:FindRecursive("RightTriangle")
   if Tri then
@@ -342,31 +344,73 @@ local function create_CMDlineIcon()
 end
 
 local function delete_CMDlineIcon()
-  if Icon then
-    local iconpos = Icon:Get("No")
+  if STIcon then
+    Printf(tostring(STIcon.Name) .. " removed")
+    local iconpos = STIcon:Get("No")
     local cmdbar = GetDisplayByIndex(1).CmdLineSection
     cmdbar:Remove(iconpos)
     local lastCols = tonumber(cmdbar:Get("Columns"))
     cmdbar.Columns = lastCols - 1
-    Icon = nil
+    Printf(tostring(STIcon))
+    STIcon = nil
 
-    local tripos = Tri:Get("No")
+    local tripos = cmdbar:Count()
     if Tri then
-      Tri.Anchors = { left = tripos - 3 }
+      Tri.Anchors = { left = lastCols - 2 }
     end
   end
 end
 
-local function main()
-    if not pluginAlive or nil then
-        if is_valid_ui_item(UI_CMD_ICON_NAME, "CmdLineSection") then
-            pluginAlive = true
-        else
-            pluginAlive = false
-            create_CMDlineIcon()
+signalTable.cmdbar_clicked = function()
+  Printf("Clicked")
+end
 
-        end
+signalTable.plugin_off = function()
+  pluginRunning = false
+  Printf("Plugin stopped")
+end
+
+local function plugin_loop()
+  Printf("tick")
+  pluginAlive = true
+  if pluginRunning then
+    -- Loop goes here
+  end
+    local refreshrate = tonumber(get_global("STT_RefreshRateValue", "1")) or tonumber(get_global("TM_RefreshRateValue", "1")) or 1
+    coroutine.yield(refreshrate)
+end
+
+local function plugin_kill()
+  pluginAlive = false
+  signalTable.plugin_off()
+  local ov = GetDisplayByIndex(1).ScreenOverlay
+  local menu = ov:FindRecursive(UI_MENU_NAME)
+  if menu then
+    FindBestFocus(menu)
+    Keyboard(1, "press", "Escape")
+    Keyboard(1, "release", "Escape")
+  end
+    local temp = GetPath("temp", false)
+  local uixml = temp .. "SpeedtoTime.xml"
+  if FileExists(uixml) then
+    os.remove(uixml)
+    Printf("Removed " .. uixml)
+  end
+  delete_CMDlineIcon()
+end
+
+local function main()
+  if not pluginAlive or nil then
+    if is_valid_ui_item(UI_CMD_ICON_NAME, "CmdLineSection") then
+      pluginAlive = true
+    else
+      pluginAlive = false
+      create_CMDlineIcon()
     end
+    Timer(plugin_loop, 0, 0, plugin_kill)
+  end
+  signalTable.cmdbar_clicked()
+  return
 end
 
 return main
