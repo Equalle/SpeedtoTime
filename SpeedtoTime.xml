@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<GMA3 DataVersion="2.3.0.4">
+    <Plugin Index="1" Name="SpeedtoTiming" Path="" Author="Juri">
+    <ComponentLua Index="1" FileName="SpeedtoTiming.lua"/>
+    </Plugin>
+    <Menu Name="SpeedtoTiming" Path="">
+        <ComponentXML FileName="SpeedtoTime.xml" PlaceHolder="ScreenOverlay"/>
+    </Menu>
+</GMA3>
