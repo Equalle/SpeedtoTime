@@ -412,7 +412,7 @@ end
 
 signalTable.apply = function(caller)
   -- Printf("Settings Applied")
-  save_state()
+--   save_state()
   signalTable.ShowWarning2(caller, "")
   FindNextFocus()
 end
@@ -438,14 +438,12 @@ signalTable.matricks_toggle = function(caller)
       end
     end
   end
-  save_state()
+--   save_state()
 end
 
 signalTable.Confirm = function(caller)
   local overlay = GetDisplayByIndex(1).ScreenOverlay
   if caller == overlay.FindRecursive(UI_MENU_NAME) then
-    signalTable.close(caller)
-  elseif caller == overlay.FindRecursive(UI_SETTINGS_NAME) then
     signalTable.close(caller)
   end
 end
@@ -531,11 +529,11 @@ signalTable.ExecuteOnEnter = function(caller, dummy, keyCode)
     -- save_state()
     do
       local n = caller and caller.Name
-      if n == "Matricks1Value" or n == "Matricks2Value" or n == "Matricks3Value" or n == "MatricksPrefixValue" then
+--[[       if n == "Matricks1Value" or n == "Matricks2Value" or n == "Matricks3Value" or n == "MatricksPrefixValue" then
         matricks_handler(caller)
       elseif n == "MasterValue" or n == "RefreshRateValue" or n == "MatricksStartIndex" then
         save_state()
-      end
+      end ]]
     end
     if caller.Name == "Apply" then
       signalTable.apply(caller)
