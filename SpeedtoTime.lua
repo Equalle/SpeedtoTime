@@ -6,9 +6,10 @@ local myHandle = select(4, ...)
 
 -- CONSTANTS
 local PLUGIN_NAME = 'SpeedtoTime'
-local PLUGIN_VERSION = 'ALPHA 0.1.1'
+local PLUGIN_VERSION = 'ALPHA 0.2.1'
 local UI_CMD_ICON_NAME = PLUGIN_NAME .. 'Icon'
 local UI_MENU_NAME = PLUGIN_NAME .. ' Menu'
+local USE_TM = nil
 
 -- PLUGIN STATE
 local pluginAlive = nil
@@ -75,6 +76,92 @@ local corners = {
   right = 'corner10',
   all = 'corner15',
 }
+
+local function save_state()
+  local overlay = GetDisplayByIndex(1).ScreenOverlay:FindRecursive(UI_MENU_NAME)
+  local ui_fields = {
+    "SPValue",
+    "TM1Value", "TM1Rate",
+    "TM2Value", "TM2Rate",
+    "TM3Value", "TM3Rate",
+  }
+
+  for _, name in ipairs(ui_fields) do
+    local el = overlay:FindRecursive(name)
+    if el then
+      set_global("ST_" .. name, el.Content or "")
+    end
+  end
+
+  local ui_toggles = {
+    "TM1Toggle",
+    "TM2Toggle",
+    "TM3Toggle",
+    "SyncTM",
+  }
+
+  for _, name in ipairs(ui_toggles) do
+    local el = overlay:FindRecursive(name)
+    if el then
+      set_global("ST_" .. name, el.State or 0)
+    end
+  end
+end
+
+local function load_state(overlay)
+  local on = overlay:FindRecursive("PluginOn")
+  local off = overlay:FindRecursive("PluginOff")
+  if on and off then
+    if pluginRunning then
+      signalTable.plugin_on(on)
+    else
+      signalTable.plugin_off(off)
+    end
+  end
+
+  local ui_fields = {
+    "SPValue",
+    "TM1Value", "TM1Rate",
+    "TM2Value", "TM2Rate",
+    "TM3Value", "TM3Rate",
+  }
+
+  for _, name in ipairs(ui_fields) do
+    local el = overlay:FindRecursive(name)
+    if el then
+      local val = get_global("ST_" .. name, nil)
+      if val then
+        el.Content = val
+      end
+    end
+  end
+
+  local ui_toggles = {
+    TM1Toggle = { "TM1Value", "TM1Rate" },
+    TM2Toggle = { "TM2Value", "TM2Rate" },
+    TM3Toggle = { "TM3Value", "TM3Rate" },
+  }
+
+  for btn, related in pairs(ui_toggles) do
+    local el = overlay:FindRecursive(btn)
+    if el then
+      local saved = tonumber(get_global("ST_" .. btn, el.State or 0))
+      el.State = saved
+      local enable = (saved == 1) and "Yes" or "No"
+      for __, fn in ipairs(related) do
+        local fel = overlay:FindRecursive(fn)
+        if fel then fel.Enabled = enable end
+      end
+    end
+  end
+
+  local synctm = overlay:FindRecursive("SyncTM")
+  if synctm then
+    local saved = tonumber(get_global("ST_SyncTM", synctm.State or 0))
+    synctm.State = saved
+    USE_TM = (saved == 1)
+  end
+end
 
 local function sanitize_text(text)
   text = tostring(text or "")
@@ -281,8 +368,8 @@ local UI_XML_CONTENT = [[
 -- Generic function to resolve XML files
 -- xmlType: "ui"
 local function resolve_xml_file(xmlType)
-  local base = GetPath("temp") or ""
-  -- local base = '/Users/juriseiffert/Documents/GrandMA3 Plugins/SpeedtoTime'
+  -- local base = GetPath("temp") or ""
+  local base = '/Users/juriseiffert/Documents/GrandMA3 Plugins/SpeedtoTime'
   -- local base = 'C:\\Users\\Juri\\iCloudDrive\\Lua Plugins\\GMA3\\SpeedtoTime'
   local dir = base .. "/"
   local filename, content
@@ -393,7 +480,7 @@ local function create_menu()
   local buttons = {
     { "PluginOff", "plugin_off" },
     { "PluginOn",  "plugin_on" },
-    { "Apply",       "apply" },
+    { "Apply",     "apply" },
   }
   for _, b in ipairs(buttons) do
     if not add_ui_element(b[1], ui, "button", { clicked = b[2] }) then
@@ -405,7 +492,7 @@ local function create_menu()
     { "TM1Toggle", "timing_toggle", 1 },
     -- { "TM2Toggle", "timing_toggle", 1 },
     -- { "TM3Toggle", "timing_toggle", 1 },
-    { "SyncTM", "", 0 }
+    { "SyncTM",    "tm_toggle",     0 }
   }
   for _, c in ipairs(checks) do
     if not add_ui_element(c[1], ui, "checkbox", { clicked = c[2], state = c[3] }) then
@@ -414,8 +501,8 @@ local function create_menu()
   end
 
   local texts = {
-    { "SPValue", "text" },    -- no default -> keep existing
-    { "TM1Value",    "text", "1" }, { "TM1Rate", "text", "0.25" },
+    { "SPValue",  "text" }, -- no default -> keep existing
+    { "TM1Value", "text", "1" }, { "TM1Rate", "text", "0.25" },
     -- { "TM2Value", "text", "2" }, { "TM2Rate", "text", "0.5" },
     -- { "TM3Value", "text", "3" }, { "TM3Rate", "text", "1" },
   }
@@ -453,11 +540,12 @@ local function create_menu()
   end
 
   -- now load saved globals so they override the defaults set above
-  --   load_state(ui)
-  --   save_state()
+    load_state(ui)
+    save_state()
 
   local title = ui:FindRecursive("TitleBar")
   local cb = title:FindRecursive("SyncTM")
+  hasTimeMAtricks = get_global("TM_MasterValue") ~= nil
   if not hasTimeMAtricks then
     if title then
       cb.Enabled = "No"
@@ -530,7 +618,7 @@ end
 
 signalTable.apply = function(caller)
   -- Printf("Settings Applied")
-  --   save_state()
+  save_state()
   signalTable.ShowWarning2(caller, "")
   FindNextFocus()
 end
@@ -556,7 +644,17 @@ signalTable.timing_toggle = function(caller)
       end
     end
   end
-  --   save_state()
+  save_state()
+end
+
+signalTable.tm_toggle = function(caller)
+  if caller.State == 1 then
+    caller.State = 0
+    USE_TM = false
+  else
+    caller.State = 1
+    USE_TM = true
+  end
 end
 
 signalTable.Confirm = function(caller)
@@ -569,12 +667,12 @@ end
 signalTable.sanitize = function(caller)
   local before = caller.Content or ""
   local after = before
-  
+
   -- Special validation for SPValue and TMxValue (integer only, no decimals)
   if caller.Name == "SPValue" or caller.Name == "TM1Value" or caller.Name == "TM2Value" or caller.Name == "TM3Value" then
     -- Keep only digits, no dots or other characters
     after = after:gsub("[^%d]", "")
-    
+
     -- Validate ranges if we have a number
     if after ~= "" then
       local num = tonumber(after)
@@ -598,7 +696,7 @@ signalTable.sanitize = function(caller)
     -- For other fields (Rate fields), apply decimal formatting
     after = sanitize_text(before)
   end
-  
+
   if before ~= after then
     caller.Content = after
     if caller.HasFocus then
@@ -689,7 +787,7 @@ signalTable.ExecuteOnEnter = function(caller, dummy, keyCode)
     do
       local n = caller and caller.Name
       if n == "TM1Value" or n == "TM2Value" or n == "TM3Value" or n == "TM1Rate" or n == "TM2Rate" or n == "TM3Rate" or n == "SPValue" then
-        -- save_state()
+        save_state()
       end
     end
     if caller.Name == "Apply" then
@@ -732,16 +830,16 @@ signalTable.plugin_off = function(caller)
   pluginRunning = false
   local ov = GetDisplayByIndex(1).ScreenOverlay:FindRecursive(UI_MENU_NAME)
   if ov then
-  local on = ov:FindRecursive("PluginOn")
-  local off = ov:FindRecursive("PluginOff")
-  local titleicon = ov:FindRecursive("TitleButton")
-  if not on or not off then return end
-  on.BackColor, off.BackColor, on.TextColor, off.TextColor = colors.button.default, colors.button.clear,
-  colors.text.white, colors.icon.active
-  titleicon.IconColor = "Button.Icon"
-end
-local cmdicon = GetDisplayByIndex(1).CmdLineSection:FindRecursive(UI_CMD_ICON_NAME)
-    cmdicon.IconColor = "Button.Icon"
+    local on = ov:FindRecursive("PluginOn")
+    local off = ov:FindRecursive("PluginOff")
+    local titleicon = ov:FindRecursive("TitleButton")
+    if not on or not off then return end
+    on.BackColor, off.BackColor, on.TextColor, off.TextColor = colors.button.default, colors.button.clear,
+        colors.text.white, colors.icon.active
+    titleicon.IconColor = "Button.Icon"
+  end
+  local cmdicon = GetDisplayByIndex(1).CmdLineSection:FindRecursive(UI_CMD_ICON_NAME)
+  cmdicon.IconColor = "Button.Icon"
 end
 
 signalTable.plugin_on = function(caller)
