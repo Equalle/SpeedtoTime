@@ -290,8 +290,9 @@ local function create_menu()
 
   local checks = {
     { "TM1Toggle", "timing_toggle", 1 },
-    { "TM2Toggle", "timing_toggle", 1 },
-    { "TM3Toggle", "timing_toggle", 1 },
+    -- { "TM2Toggle", "timing_toggle", 1 },
+    -- { "TM3Toggle", "timing_toggle", 1 },
+    { "SyncTM", "", 0 }
   }
   for _, c in ipairs(checks) do
     if not add_ui_element(c[1], ui, "checkbox", { clicked = c[2], state = c[3] }) then
@@ -302,8 +303,8 @@ local function create_menu()
   local texts = {
     { "SPValue", "text" },    -- no default -> keep existing
     { "TM1Value",    "text", "1" }, { "TM1Rate", "text", "0.25" },
-    { "TM2Value", "text", "2" }, { "TM2Rate", "text", "0.5" },
-    { "TM3Value", "text", "3" }, { "TM3Rate", "text", "1" },
+    -- { "TM2Value", "text", "2" }, { "TM2Rate", "text", "0.5" },
+    -- { "TM3Value", "text", "3" }, { "TM3Rate", "text", "1" },
   }
   for _, t in ipairs(texts) do
     if not add_ui_element(t[1], ui, "textbox", { content = t[3] }) then
@@ -343,7 +344,7 @@ local function create_menu()
   --   save_state()
 
   local title = ui:FindRecursive("TitleBar")
-  local cb = title:FindRecursive("CheckBox")
+  local cb = title:FindRecursive("SyncTM")
   if not hasTimeMAtricks then
     if title then
       cb.Enabled = "No"
@@ -617,28 +618,32 @@ end
 signalTable.plugin_off = function(caller)
   pluginRunning = false
   local ov = GetDisplayByIndex(1).ScreenOverlay:FindRecursive(UI_MENU_NAME)
+  if ov then
   local on = ov:FindRecursive("PluginOn")
   local off = ov:FindRecursive("PluginOff")
   local titleicon = ov:FindRecursive("TitleButton")
-  local cmdicon = GetDisplayByIndex(1).CmdLineSection:FindRecursive(UI_CMD_ICON_NAME)
   if not on or not off then return end
   on.BackColor, off.BackColor, on.TextColor, off.TextColor = colors.button.default, colors.button.clear,
-      colors.text.white, colors.icon.active
+  colors.text.white, colors.icon.active
   titleicon.IconColor = "Button.Icon"
-  cmdicon.IconColor = "Button.Icon"
+end
+local cmdicon = GetDisplayByIndex(1).CmdLineSection:FindRecursive(UI_CMD_ICON_NAME)
+    cmdicon.IconColor = "Button.Icon"
 end
 
 signalTable.plugin_on = function(caller)
   pluginRunning = true
   local ov = GetDisplayByIndex(1).ScreenOverlay:FindRecursive(UI_MENU_NAME)
-  local off = ov:FindRecursive("PluginOff")
-  local on = ov:FindRecursive("PluginOn")
-  local titleicon = ov:FindRecursive("TitleButton")
+  if ov then
+    local off = ov:FindRecursive("PluginOff")
+    local on = ov:FindRecursive("PluginOn")
+    local titleicon = ov:FindRecursive("TitleButton")
+    off.BackColor, on.BackColor, off.TextColor, on.TextColor = colors.button.default, colors.button.please,
+        colors.text.white, colors.icon.active
+    titleicon.IconColor = "Button.ActiveIcon"
+    if not on or not off then return end
+  end
   local cmdicon = GetDisplayByIndex(1).CmdLineSection:FindRecursive(UI_CMD_ICON_NAME)
-  if not on or not off then return end
-  off.BackColor, on.BackColor, off.TextColor, on.TextColor = colors.button.default, colors.button.please,
-      colors.text.white, colors.icon.active
-  titleicon.IconColor = "Button.ActiveIcon"
   cmdicon.IconColor = "Button.ActiveIcon"
 end
 

@@ -11,7 +11,7 @@
 				<Item SizePolicy="Fixed" Size="50" />
 			</ItemCollectColumns>
 			<TitleButton Name="TitleButton" Anchors="0,0" Texture="corner1"/>
-			<CheckBox Name="CheckBox" Text="Sync TimeMAtricks rate" Anchors="1,0" Visible="Yes"/>
+			<CheckBox Name="SyncTM" Text="Sync TimeMAtricks rate" Anchors="1,0" Visible="Yes"/>
 			<CloseButton Name="CloseBtn" Tooltip="Close the Timematricks Settings" Anchors="2,0" Texture="corner2" />
 			<WarningInfoButton Name="WarningButton" Anchors="0,0,2,0" Font="Regular32" BackColor="Global.AlertText" />
 		</TitleBar>
