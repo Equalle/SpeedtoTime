@@ -110,5 +110,7 @@
 				</ItemCollectColumns>
 				<Button Name="Apply" Text="Apply" Tooltip="Apply settings (autosave on close)" Anchors="0,0" Margin="0,0,0,5" BackColor="Button.Background" Texture="corner15" Focus="Never" KeyDown=":ExecuteOnEnter" HideFocusFrame="No" />
 				<WarningInfoButton Name="WarningButton2" Anchors="0,0,0,0" Font="Regular32" BackColor="Global.SelectedInverted" Texture="corner15"/>
+			</UILayoutGrid>
+			</DialogFrame>
 			</BaseInput>
 		</GMA3>

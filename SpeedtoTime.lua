@@ -161,16 +161,129 @@ local function write_text_file(path, content)
 end
 
 local UI_XML_CONTENT = [[
+<?xml version="1.0" encoding="UTF-8"?>
+<GMA3 DataVersion="0.0.1">
+	<BaseInput Name="SpeedtoTime Menu" H="0" W="700" AlignmentH="Center" AlignmentV="Center" Focus="InitialFocus" CanCoexistWithModal="Yes" BlockClickThru="Yes" SuppressOverlayAutoClose="Yes" HideFocusFrame="Yes" CloseOnEscape="Yes">
+		<TitleBar Name="TitleBar" Anchors="0,0" HideFocusFrame="Yes">
+			<ItemCollectRows>
+				<Item SizePolicy="Fixed" Size="50" />
+			</ItemCollectRows>
+			<ItemCollectColumns>
+				<Item SizePolicy="Stretch" />
+				<Item SizePolicy="Fixed" Size="280" />
+				<Item SizePolicy="Fixed" Size="50" />
+			</ItemCollectColumns>
+			<TitleButton Name="TitleButton" Anchors="0,0" Texture="corner1"/>
+			<CheckBox Name="SyncTM" Text="Sync TimeMAtricks rate" Anchors="1,0" Visible="Yes"/>
+			<CloseButton Name="CloseBtn" Tooltip="Close the Timematricks Settings" Anchors="2,0" Texture="corner2" />
+			<WarningInfoButton Name="WarningButton" Anchors="0,0,2,0" Font="Regular32" BackColor="Global.AlertText" />
+		</TitleBar>
 
+		<!-- Main Content -->
+		<DialogFrame Name="MainContent" Anchors="0,1" Padding="2,4,2,4" CanCoexistWithModal="Yes" HideFocusFrame="Yes">
+			<ItemCollectRows>
+				<Item SizePolicy="Fixed" Size="30" />
+				<!-- Version -->
+				<Item SizePolicy="Stretch" />
+				<!-- Plugin Buttons -->
+				<Item SizePolicy="Fixed" Size="45" />
+				<!-- Settings -->
+				<Item SizePolicy="Fixed" Size="65" />
+				<!-- Speed Select -->
+				<Item SizePolicy="Fixed" Size="50" />
+				<!-- Matricks 1 -->
+				<Item SizePolicy="Fixed" Size="80" />
+				<!-- Close -->
+			</ItemCollectRows>
+			<ItemCollectColumns>
+				<Item SizePolicy="Stretch" />
+			</ItemCollectColumns>
+
+			<!-- Version -->
+			<UILayoutGrid Name="Version Frame" H="100%" W="100%" Anchors="0,0">
+				<ItemCollectRows>
+					<Item SizePolicy="Fixed" Size="30" />
+				</ItemCollectRows>
+				<ItemCollectColumns>
+					<Item SizePolicy="Stretch" />
+				</ItemCollectColumns>
+				<Button Name="Version" Text="" Anchors="0,0" BackColor="CheckBox.ReadOnlyBackground" Texture="corner15" HasHover="0" Focus="Never" HasPressedAnimation="No" />
+			</UILayoutGrid>
+
+			<!-- Plugin Buttons -->
+			<UILayoutGrid Name="PluginButtons" H="100%" W="100%" Anchors="0,1" Padding="0,5,0,5">
+				<ItemCollectRows>
+					<Item SizePolicy="Fixed" Size="80" />
+				</ItemCollectRows>
+				<ItemCollectColumns>
+					<Item SizePolicy="Stretch" />
+					<Item SizePolicy="Stretch" />
+				</ItemCollectColumns>
+				<Button Name="PluginOff" Text="Plugin Off" Tooltip="Turns plugin loop OFF" Anchors="0,0" BackColor="Button.BackgroundClear" Texture="corner5" TextColor="Global.WarningText" Font="Medium20" TextShadow="Yes" Focus="Never" />
+				<Button Name="PluginOn" Text="Plugin On" Tooltip="Turns plugin loop ON" Anchors="1,0" BackColor="Button.Background" Texture="corner10" TextColor="Global.Text" Font="Medium20" TextShadow="Yes" Focus="Never" />
+			</UILayoutGrid>
+
+			<!-- Settings -->
+			<UILayoutGrid Name="Settings" H="100%" W="100%" Anchors="0,2">
+				<ItemCollectRows>
+					<Item SizePolicy="Fixed" Size="40" />
+				</ItemCollectRows>
+				<ItemCollectColumns>
+					<Item SizePolicy="Stretch" />
+				</ItemCollectColumns>
+				<Button Name="Settings" Text="Settings" Anchors="0,0" BackColor="CheckBox.ReadOnlyBackground" Texture="corner15" HasHover="0" Focus="Never" HasPressedAnimation="No" />
+			</UILayoutGrid>
+
+			<!-- Speed Select -->
+			<UILayoutGrid Name="Master" H="100%" W="100%" Anchors="0,3">
+				<ItemCollectRows>
+					<Item SizePolicy="Fixed" Size="60" />
+				</ItemCollectRows>
+				<ItemCollectColumns>
+					<Item SizePolicy="Stretch" />
+					<Item SizePolicy="Fixed" Size="334" />
+				</ItemCollectColumns>
+				<UIObject Name="SpeedMaster" Text="Speed Master" Tooltip="" Anchors="0,0" BackColor="Button.Background" Texture="corner15" HasHover="No" HasPressedAnimation="No" Focus="Never"/>
+				<LineEdit Name="SPValue" Message="Object number" Tooltip="Enter desired Timing master you want the plugin to listen to" Anchors="1,0" Padding="0,0,10,0" Icon="master" IconAlignmentH="Right" IconAlignmentV="Center" Texture="corner15" KeyboardIconAlignmentH="Left" Focus="InitialFocus" FocusGet=":LineEditSelectAll" FocusLost=":LineEditDeSelect" DoubleClicked=":LineEditSelectAll" KeyDown=":ExecuteOnEnter" Filter="0123456789" OnWrongChar=":ShowWarning" MaxTextLength="2" TextChanged=":sanitize"/>
+			</UILayoutGrid>
+
+			<!-- Matricks 1 -->
+			<UILayoutGrid Name="Matricks1" H="100%" W="100%" Anchors="0,4">
+				<ItemCollectRows>
+					<Item SizePolicy="Fixed" Size="50" />
+				</ItemCollectRows>
+				<ItemCollectColumns>
+					<Item SizePolicy="Fixed" Size="250" />
+					<Item SizePolicy="Stretch" />
+					<Item SizePolicy="Fixed" Size="130" />
+				</ItemCollectColumns>
+				<CheckBox Name="TM1Toggle" Text="Timing Master 1" Tooltip="Toggles Timing Master 1" Anchors="0,0" Texture="corner1" BackColor="Button.Background" HasHover="1" Focus="Never" />
+				<LineEdit Name="TM1Value" Message="Object number" Tooltip="Enter the number for your TimingMaster" Anchors="1,0" Padding="0,0,10,0" Icon="master" IconAlignmentH="Right" IconAlignmentV="Center" Texture="corner0" KeyboardIconAlignmentH="Left" Focus="WantsFocus" FocusGet=":LineEditSelectAll" FocusLost=":LineEditDeSelect" DoubleClicked=":LineEditSelectAll" KeyDown=":ExecuteOnEnter" Filter="0123456789" OnWrongChar=":ShowWarning" VKPluginName="TextInputNumOnly" MaxTextLength="2" TextChanged=":sanitize"/>
+				<LineEdit Name="TM1Rate" Message="rate" Tooltip="Enter the rate for Timing Master 1" Anchors="2,0" Padding="0,0,5,0" Icon="object_xkeys" IconAlignmentH="Right" IconAlignmentV="Center" Texture="corner0" KeyboardIconAlignmentH="Left" Focus="CanHaveFocus" FocusGet=":LineEditSelectAll" FocusLost=":LineEditDeSelect" Filter="0123456789.," TextChanged=":sanitize" DoubleClicked=":LineEditSelectAll" KeyDown=":ExecuteOnEnter" VKPluginName="TextInputNumOnly" OnWrongChar=":ShowWarning" />
+			</UILayoutGrid>
+
+			<!-- Close -->
+			<UILayoutGrid Name="CloseButton" H="100%" W="100%" Anchors="0,5" Padding="0,5,0,0">
+				<ItemCollectRows>
+					<Item SizePolicy="Fixed" Size="80" />
+				</ItemCollectRows>
+				<ItemCollectColumns>
+					<Item SizePolicy="Stretch" />
+					<!-- <Item SizePolicy="Stretch" /> -->
+				</ItemCollectColumns>
+				<Button Name="Apply" Text="Apply" Tooltip="Apply settings (autosave on close)" Anchors="0,0" Margin="0,0,0,5" BackColor="Button.Background" Texture="corner15" Focus="Never" KeyDown=":ExecuteOnEnter" HideFocusFrame="No" />
+				<WarningInfoButton Name="WarningButton2" Anchors="0,0,0,0" Font="Regular32" BackColor="Global.SelectedInverted" Texture="corner15"/>
+			</BaseInput>
+		</GMA3>
 ]]
 
 -- XML MANAGEMENT
 -- Generic function to resolve XML files
 -- xmlType: "ui"
 local function resolve_xml_file(xmlType)
-  -- local base = GetPath("temp") or ""
-  -- local base = '/Users/juriseiffert/Library/Mobile Documents/com~apple~CloudDocs/Lua Plugins/GMA3/SpeedtoTime'
-  local base = 'C:\\Users\\Juri\\iCloudDrive\\Lua Plugins\\GMA3\\SpeedtoTime'
+  local base = GetPath("temp") or ""
+  -- local base = '/Users/juriseiffert/Documents/GrandMA3 Plugins/SpeedtoTime'
+  -- local base = 'C:\\Users\\Juri\\iCloudDrive\\Lua Plugins\\GMA3\\SpeedtoTime'
   local dir = base .. "/"
   local filename, content
 
@@ -182,7 +295,7 @@ local function resolve_xml_file(xmlType)
     return nil, nil
   end
 
-  local slash = GetPathSeparator()
+  local slash = "/"
   local full = dir .. slash .. filename
   if not FileExists(full) then
     local ok = write_text_file(full, content)
@@ -668,7 +781,7 @@ local function plugin_kill()
     presskey("Escape")
   end
   local temp = GetPath("temp", false)
-  local uixml = temp .. "SpeedtoTime_UI.xml"
+  local uixml = temp .. "/SpeedtoTime_UI.xml"
   if FileExists(uixml) then
     os.remove(uixml)
     Printf("Removed " .. uixml)
