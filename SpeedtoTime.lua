@@ -280,7 +280,7 @@ local function create_menu()
   local buttons = {
     { "PluginOff", "plugin_off" },
     { "PluginOn",  "plugin_on" },
-    -- { "Apply",       "apply" },
+    { "Apply",       "apply" },
   }
   for _, b in ipairs(buttons) do
     if not add_ui_element(b[1], ui, "button", { clicked = b[2] }) then
@@ -289,7 +289,9 @@ local function create_menu()
   end
 
   local checks = {
-    { "TM1Toggle",         "matricks_toggle",     1 },
+    { "TM1Toggle", "timing_toggle", 1 },
+    { "TM2Toggle", "timing_toggle", 1 },
+    { "TM3Toggle", "timing_toggle", 1 },
   }
   for _, c in ipairs(checks) do
     if not add_ui_element(c[1], ui, "checkbox", { clicked = c[2], state = c[3] }) then
@@ -298,8 +300,10 @@ local function create_menu()
   end
 
   local texts = {
-    -- { "SpeedMaster",    "text" }, -- no default -> keep existing
-    -- { "Matricks1Value", "text" }, { "Matricks1Rate", "text", "0.25" },
+    { "SPValue", "text" },    -- no default -> keep existing
+    { "TM1Value",    "text", "1" }, { "TM1Rate", "text", "0.25" },
+    { "TM2Value", "text", "2" }, { "TM2Rate", "text", "0.5" },
+    { "TM3Value", "text", "3" }, { "TM3Rate", "text", "1" },
   }
   for _, t in ipairs(texts) do
     if not add_ui_element(t[1], ui, "textbox", { content = t[3] }) then
@@ -311,7 +315,7 @@ local function create_menu()
     -- { "HT",        "rate_mod",          1 },
     -- { "ResetRate", "reset_overallrate", 1 },
     -- { "DT",        "rate_mod",          1 },
-  } 
+  }
 
   for _, r in ipairs(rates) do
     if not add_ui_element(r[1], ui, "button", { clicked = r[2] }) then
@@ -320,7 +324,7 @@ local function create_menu()
   end
 
   local plugininfo = {
-    { "TitleButton", PLUGIN_NAME,  icons.time },
+    { "TitleButton", PLUGIN_NAME,                 icons.time },
     { "Version",     "Version " .. PLUGIN_VERSION },
   }
 
@@ -412,12 +416,12 @@ end
 
 signalTable.apply = function(caller)
   -- Printf("Settings Applied")
---   save_state()
+  --   save_state()
   signalTable.ShowWarning2(caller, "")
   FindNextFocus()
 end
 
-signalTable.matricks_toggle = function(caller)
+signalTable.timing_toggle = function(caller)
   local mapping = {
     TM1Toggle = { "TM1Value", "TM1Rate" },
   }
@@ -438,7 +442,7 @@ signalTable.matricks_toggle = function(caller)
       end
     end
   end
---   save_state()
+  --   save_state()
 end
 
 signalTable.Confirm = function(caller)
@@ -450,13 +454,48 @@ end
 
 signalTable.sanitize = function(caller)
   local before = caller.Content or ""
-  local after = sanitize_text(before)
+  local after = before
+  
+  -- Special validation for SPValue and TMxValue (integer only, no decimals)
+  if caller.Name == "SPValue" or caller.Name == "TM1Value" or caller.Name == "TM2Value" or caller.Name == "TM3Value" then
+    -- Keep only digits, no dots or other characters
+    after = after:gsub("[^%d]", "")
+    
+    -- Validate ranges if we have a number
+    if after ~= "" then
+      local num = tonumber(after)
+      if num then
+        if caller.Name == "SPValue" then
+          if num < 1 then
+            after = "1"
+          elseif num > 16 then
+            after = "16"
+          end
+        else -- TM1Value, TM2Value, TM3Value
+          if num < 1 then
+            after = "1"
+          elseif num > 50 then
+            after = "50"
+          end
+        end
+      end
+    end
+  else
+    -- For other fields (Rate fields), apply decimal formatting
+    after = sanitize_text(before)
+  end
+  
   if before ~= after then
     caller.Content = after
     if caller.HasFocus then
-      Keyboard(1, "press", "End")
-      Keyboard(1, "release", "End")
-      signalTable.ShowWarning(caller, "Allowed format: x.xx")
+      presskey("End")
+      if caller.Name == "SPValue" then
+        signalTable.ShowWarning(caller, "Speed Master: 1-16")
+      elseif caller.Name == "TM1Value" or caller.Name == "TM2Value" or caller.Name == "TM3Value" then
+        signalTable.ShowWarning(caller, "TimingMaster: 1-50")
+      else
+        signalTable.ShowWarning(caller, "Allowed format: x.xx")
+      end
     end
   end
 end
@@ -479,6 +518,14 @@ signalTable.ShowWarning = function(caller, status, creator)
   end
 end
 
+signalTable.ShowWarning2 = function(caller, status, creator)
+  local ov = GetDisplayByIndex(1).ScreenOverlay:FindRecursive(UI_MENU_NAME)
+  if ov == caller:Parent():Parent():Parent() then
+    local ti = ov:FindRecursive("WarningButton2")
+    ti.ShowAnimation(status)
+  end
+end
+
 signalTable.LineEditSelectAll = function(caller)
   if not caller then return end
   caller:SelectAll()
@@ -487,18 +534,17 @@ signalTable.LineEditSelectAll = function(caller)
   if not ov then return end
 
   local fieldNames = {
-    "Matricks1Value",
-    "Matricks2Value",
-    "Matricks3Value",
-    "Matricks1Rate",
-    "Matricks2Rate",
-    "Matricks3Rate",
-    "MatricksPrefixValue",
-    "MasterValue"
+    "TM1Value",
+    "TM2Value",
+    "TM3Value",
+    "TM1Rate",
+    "TM2Rate",
+    "TM3Rate",
+    "SPValue"
   }
 
   local function isRate(name)
-    return name:match("^Matricks%dRate$")
+    return name:match("^TM%dRate$")
   end
 
   for _, name in ipairs(fieldNames) do
@@ -508,7 +554,7 @@ signalTable.LineEditSelectAll = function(caller)
         -- Deselect if it somehow has focus
         if el.HasFocus then el:Deselect() end
         -- Restore unsaved edits back to stored global
-        local saved = get_global("TM_" .. name, el.Content or "")
+        local saved = get_global("ST_" .. name, el.Content or "")
         if (el.Content or "") ~= saved then
           el.Content = saved
           signalTable.ShowWarning(caller, "NOT SAVED! Restored saved value")
@@ -519,21 +565,18 @@ signalTable.LineEditSelectAll = function(caller)
 end
 
 signalTable.LineEditDeSelect = function(caller)
-  caller.Deselect();
+  caller.Deselect()
   -- save_state()
 end
 
 signalTable.ExecuteOnEnter = function(caller, dummy, keyCode)
   if caller.HasFocus and keyCode == Enums.KeyboardCodes.Enter then
     signalTable.LineEditDeSelect(caller)
-    -- save_state()
     do
       local n = caller and caller.Name
---[[       if n == "Matricks1Value" or n == "Matricks2Value" or n == "Matricks3Value" or n == "MatricksPrefixValue" then
-        matricks_handler(caller)
-      elseif n == "MasterValue" or n == "RefreshRateValue" or n == "MatricksStartIndex" then
-        save_state()
-      end ]]
+      if n == "TM1Value" or n == "TM2Value" or n == "TM3Value" or n == "TM1Rate" or n == "TM2Rate" or n == "TM3Rate" or n == "SPValue" then
+        -- save_state()
+      end
     end
     if caller.Name == "Apply" then
       signalTable.apply(caller)
@@ -605,7 +648,7 @@ local function plugin_loop()
   if pluginRunning then
     -- Loop goes here
   end
-  local refreshrate = tonumber(get_global("STT_RefreshRateValue", "1")) or
+  local refreshrate = tonumber(get_global("ST_RefreshRateValue", "1")) or
       tonumber(get_global("TM_RefreshRateValue", "1")) or 1
   coroutine.yield(refreshrate)
 end
@@ -617,8 +660,7 @@ local function plugin_kill()
   local menu = ov:FindRecursive(UI_MENU_NAME)
   if menu then
     FindBestFocus(menu)
-    Keyboard(1, "press", "Escape")
-    Keyboard(1, "release", "Escape")
+    presskey("Escape")
   end
   local temp = GetPath("temp", false)
   local uixml = temp .. "SpeedtoTime_UI.xml"
